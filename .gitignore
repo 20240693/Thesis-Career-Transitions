@@ -1,0 +1,12 @@
+# macOS junk
+.DS_Store
+
+# Processed datasets (large files)
+Data/Processed/*.csv
+Data/Processed/*.parquet
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Models / embeddings
+models/git reset --soft HEAD~2
