@@ -119,21 +119,32 @@ def build_train_examples_with_meta(train_df, max_samples: Optional[int] = None):
         grp = row.get("iscoGroup")
         occ = row.get("occupationUri")
 
+        # must have non-empty texts
         if not (isinstance(cv, str) and isinstance(jd, str) and cv.strip() and jd.strip()):
             continue
-        if not (isinstance(grp, str) and grp.strip()):
+
+        # iscoGroup can be int -> convert to string
+        if grp is None:
             continue
+        grp = str(grp).strip()
+        if not grp:
+            continue
+
+        # must have occupationUri
         if not (isinstance(occ, str) and occ.strip()):
             continue
 
-        key = (cv.strip(), jd.strip())
+        cv = cv.strip()
+        jd = jd.strip()
+
+        key = (cv, jd)
         if key in seen:
             continue
         seen.add(key)
 
         examples.append(InputExample(texts=[cv, jd]))
-        groups.append(grp)
-        occs.append(occ)
+        groups.append(grp)          # now always a string
+        occs.append(occ.strip())
 
     return examples, groups, occs
 
