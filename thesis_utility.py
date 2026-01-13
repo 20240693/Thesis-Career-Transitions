@@ -348,12 +348,23 @@ class HybridBatchSampler(Sampler):
 # Training helper
 # ----------------------------
 
-def train_sbert_with_dataloader(train_dataloader, ir_evaluator, run_name: str, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+def train_sbert_with_dataloader(
+    train_dataloader,
+    ir_evaluator,
+    run_name: str,
+    batch_size: int,
+    model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+):
     """
     Train SBERT with MultipleNegativesRankingLoss using a provided dataloader.
     Keeps evaluator and run naming explicit (no globals).
+
+    IMPORTANT: When using DataLoader(batch_sampler=...), train_dataloader.batch_size is None.
+    Passing batch_size explicitly avoids Sentence-Transformers internal errors.
     """
     from sentence_transformers import SentenceTransformer, losses
+
+    assert batch_size >= 2, "MNLR requires batch_size >= 2"
 
     model = SentenceTransformer(model_name)
     train_loss = losses.MultipleNegativesRankingLoss(model)
@@ -371,6 +382,7 @@ def train_sbert_with_dataloader(train_dataloader, ir_evaluator, run_name: str, m
         warmup_steps=warmup_steps,
         evaluation_steps=max(1000, len(train_dataloader)//2),
         output_path=output_path,
-        show_progress_bar=True
+        show_progress_bar=True,
+        batch_size=batch_size,
     )
     return output_path
