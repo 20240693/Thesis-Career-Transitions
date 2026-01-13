@@ -348,7 +348,7 @@ class HybridBatchSampler(Sampler):
 # Training helper
 # ----------------------------
 
-def train_sbert_with_dataloader(train_dataloader, ir_evaluator, run_name: str, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+def train_sbert_with_dataloader(train_dataloader, ir_evaluator, run_name: str, model_name: str = "sentence-transformers/all-MiniLM-L6-v2", steps_per_epoch=None):
     """
     Train SBERT with MultipleNegativesRankingLoss using a provided dataloader.
     Keeps evaluator and run naming explicit (no globals).
@@ -369,6 +369,7 @@ def train_sbert_with_dataloader(train_dataloader, ir_evaluator, run_name: str, m
         evaluator=ir_evaluator,
         epochs=epochs,
         warmup_steps=warmup_steps,
+        steps_per_epoch=steps_per_epoch,
         evaluation_steps=max(1000, len(train_dataloader)//2),
         output_path=output_path,
         show_progress_bar=True
