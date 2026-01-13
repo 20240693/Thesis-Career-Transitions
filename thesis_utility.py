@@ -348,29 +348,34 @@ class HybridBatchSampler(Sampler):
 # Training helper
 # ----------------------------
 
-def train_sbert_with_dataloader(
-    train_dataloader,
-    ir_evaluator,
-    run_name: str,
-    batch_size: int,
-    model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
-):
+def train_sbert_with_dataloader(train_dataloader, ir_evaluator, run_name: str,
+                               model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+                               epochs: int = 1,
+                               evaluation_steps: int | None = None,
+                               steps_per_epoch: int | None = None):
     """
     Train SBERT with MultipleNegativesRankingLoss using a provided dataloader.
-    Keeps evaluator and run naming explicit (no globals).
 
-    IMPORTANT: When using DataLoader(batch_sampler=...), train_dataloader.batch_size is None.
-    Passing batch_size explicitly avoids Sentence-Transformers internal errors.
+    IMPORTANT:
+    - Do NOT pass batch_size into SentenceTransformer.fit() (it's not a valid kwarg).
+    - When using batch_sampler, SentenceTransformers may not infer batch_size, so provide
+      steps_per_epoch explicitly (recommended: len(train_dataloader)).
     """
+    import math
+    from datetime import datetime
     from sentence_transformers import SentenceTransformer, losses
-
-    assert batch_size >= 2, "MNLR requires batch_size >= 2"
 
     model = SentenceTransformer(model_name)
     train_loss = losses.MultipleNegativesRankingLoss(model)
 
-    epochs = 1
-    warmup_steps = math.ceil(len(train_dataloader) * epochs * 0.1)
+    if steps_per_epoch is None:
+        # Works for both normal DataLoader and batch_sampler DataLoader
+        steps_per_epoch = len(train_dataloader)
+
+    warmup_steps = math.ceil(steps_per_epoch * epochs * 0.1)
+
+    if evaluation_steps is None:
+        evaluation_steps = max(1000, steps_per_epoch // 2)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     output_path = f"/content/drive/MyDrive/NOVA IMS/Year 2/Thesis/Models/{run_name}_{timestamp}"
@@ -379,10 +384,11 @@ def train_sbert_with_dataloader(
         train_objectives=[(train_dataloader, train_loss)],
         evaluator=ir_evaluator,
         epochs=epochs,
+        steps_per_epoch=steps_per_epoch,   # key line
         warmup_steps=warmup_steps,
-        evaluation_steps=max(1000, len(train_dataloader)//2),
+        evaluation_steps=evaluation_steps,
         output_path=output_path,
         show_progress_bar=True,
-        batch_size=batch_size,
     )
+
     return output_path
