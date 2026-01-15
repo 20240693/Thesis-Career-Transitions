@@ -378,7 +378,8 @@ def train_sbert_with_dataloader(train_dataloader, ir_evaluator, run_name: str,
     from datetime import datetime
     from sentence_transformers import SentenceTransformer, losses
 
-    model = SentenceTransformer(model_name)
+    if model is None:
+        model = SentenceTransformer(model_name)
     train_loss = losses.MultipleNegativesRankingLoss(model)
 
     if steps_per_epoch is None:
