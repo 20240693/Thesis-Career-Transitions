@@ -267,11 +267,18 @@ def top_hybrid_neighbor_occs(pos_occ: str, index: OntologyIndex, top_m: int = 50
 
 class HybridBatchSampler(Sampler):
     """
-    Hybrid-hard batching: seed an example, fill the batch using examples whose
+    Hybrid-hard batching: seed an example, then fill the batch using examples whose
     occupations are among the seed occupation's top hybrid neighbors.
 
-    Includes per-batch duplicate-pair protection.
+    Safety fixes:
+    - No global "used" constraint (avoids end-of-epoch infinite loops).
+    - Keeps per-batch duplicate-pair protection.
+
+    Notes:
+    - With MNLR, batch_size must be >= 2.
+    - Examples can appear in multiple batches within an epoch (this is OK / typical).
     """
+
     def __init__(
         self,
         examples,
@@ -296,27 +303,23 @@ class HybridBatchSampler(Sampler):
         seeds = self.all_indices[:]
         self.rng.shuffle(seeds)
 
-        used_global = set()
-
         for seed_idx in seeds:
-            if seed_idx in used_global:
-                continue
-
-            batch = []
+            batch: List[int] = []
             used_pairs = set()
 
-            def try_add(idx):
+            def try_add(idx: int) -> bool:
                 ex = self.examples[idx]
                 key = (ex.texts[0].strip(), ex.texts[1].strip())
                 if key in used_pairs:
                     return False
                 used_pairs.add(key)
                 batch.append(idx)
-                used_global.add(idx)
                 return True
 
+            # 1) Add seed
             try_add(seed_idx)
 
+            # 2) Fill from hybrid neighbors
             seed_occ = self.occs_by_example[seed_idx]
             neighbor_occs = self.occ_to_neighbors.get(seed_occ, [])
 
@@ -328,19 +331,29 @@ class HybridBatchSampler(Sampler):
                 if not cand_list:
                     continue
                 cand_idx = self.rng.choice(cand_list)
-                if cand_idx in used_global:
-                    continue
                 try_add(cand_idx)
 
-            while len(batch) < self.batch_size:
+            # 3) Fallback: fill with random examples (bounded attempts to avoid rare stalls)
+            attempts = 0
+            max_attempts = 20 * self.batch_size
+            while len(batch) < self.batch_size and attempts < max_attempts:
+                attempts += 1
                 cand_idx = self.rng.choice(self.all_indices)
-                if cand_idx in used_global:
-                    continue
                 try_add(cand_idx)
+
+            # If we still couldn't fill due to extreme duplicate-pair filtering, just skip
+            if len(batch) < 2:
+                continue
+
+            # If we couldn't fully fill, pad by relaxing duplicate protection (very rare).
+            # (MNLR requires batch_size>=2; full batch preferred.)
+            while len(batch) < self.batch_size:
+                batch.append(self.rng.choice(self.all_indices))
 
             yield batch
 
     def __len__(self):
+        # Approximate number of batches (same convention as before)
         return len(self.examples) // self.batch_size
 
 
