@@ -356,6 +356,98 @@ class HybridBatchSampler(Sampler):
         # Approximate number of batches (same convention as before)
         return len(self.examples) // self.batch_size
 
+class HybridOrderSampler(Sampler[int]):
+    """
+    Hybrid-hard batching but implemented as a *flat* sampler:
+    - constructs batches internally
+    - yields indices in batch order (flattened)
+    - DataLoader(batch_size=...) will create the actual batches
+
+    This keeps DataLoader.batch_size != None, which avoids the NoneType * int error.
+    """
+
+    def __init__(
+        self,
+        examples,
+        occs_by_example: List[str],
+        occ_to_neighbors: Dict[str, List[str]],
+        occ_to_example_indices: Dict[str, List[int]],
+        batch_size: int,
+        seed: int = 42,
+        max_tries: int = 50,
+        drop_last: bool = True,
+    ):
+        assert batch_size >= 2, "MNLR needs batch_size >= 2"
+        self.examples = examples
+        self.occs_by_example = occs_by_example
+        self.occ_to_neighbors = occ_to_neighbors
+        self.occ_to_example_indices = occ_to_example_indices
+        self.batch_size = batch_size
+        self.rng = random.Random(seed)
+        self.max_tries = max_tries
+        self.drop_last = drop_last
+        self.all_indices = list(range(len(examples)))
+
+    def __iter__(self):
+        seeds = self.all_indices[:]
+        self.rng.shuffle(seeds)
+
+        for seed_idx in seeds:
+            batch: List[int] = []
+            used_pairs = set()
+
+            def try_add(idx: int) -> bool:
+                if idx < 0 or idx >= len(self.examples):
+                    return False
+                ex = self.examples[idx]
+                key = (ex.texts[0].strip(), ex.texts[1].strip())
+                if key in used_pairs:
+                    return False
+                used_pairs.add(key)
+                batch.append(idx)
+                return True
+
+            # 1) seed
+            try_add(seed_idx)
+
+            # 2) neighbors
+            seed_occ = self.occs_by_example[seed_idx]
+            neighbor_occs = self.occ_to_neighbors.get(seed_occ, [])
+
+            tries = 0
+            while len(batch) < self.batch_size and tries < self.max_tries and neighbor_occs:
+                tries += 1
+                occ = self.rng.choice(neighbor_occs)
+                cand_list = self.occ_to_example_indices.get(occ, [])
+                if not cand_list:
+                    continue
+                cand_idx = self.rng.choice(cand_list)
+                try_add(cand_idx)
+
+            # 3) fallback random (bounded)
+            attempts = 0
+            max_attempts = 50 * self.batch_size
+            while len(batch) < self.batch_size and attempts < max_attempts:
+                attempts += 1
+                cand_idx = self.rng.choice(self.all_indices)
+                try_add(cand_idx)
+
+            # drop incomplete batch if requested
+            if len(batch) < self.batch_size:
+                if self.drop_last:
+                    continue
+                if len(batch) < 2:
+                    continue
+
+            # yield flattened indices
+            for idx in batch:
+                yield idx
+
+    def __len__(self):
+        # approximate number of samples yielded
+        if self.drop_last:
+            return (len(self.examples) // self.batch_size) * self.batch_size
+        return len(self.examples)
 
 # ----------------------------
 # Training helper
