@@ -362,6 +362,7 @@ class HybridBatchSampler(Sampler):
 # ----------------------------
 
 def train_sbert_with_dataloader(train_dataloader, ir_evaluator, run_name: str,
+                               model=None,
                                model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
                                epochs: int = 1,
                                evaluation_steps: int | None = None,
