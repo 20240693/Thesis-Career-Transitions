@@ -20,6 +20,12 @@ import pandas as pd
 from sentence_transformers import InputExample, SentenceTransformer, losses
 from sentence_transformers.evaluation import InformationRetrievalEvaluator
 
+import os
+import json
+from typing import Any, Optional, Mapping
+
+import re
+
 
 def build_train_examples_with_meta(
     train_df: pd.DataFrame,
@@ -144,19 +150,29 @@ def train_sbert_with_dataloader(
     ir_evaluator,
     run_name: str,
     *,
-    model: SentenceTransformer | None = None,
+    model: Optional[SentenceTransformer] = None,
     model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
     epochs: int = 1,
-    evaluation_steps: int | None = None,
-    steps_per_epoch: int | None = None,
-    models_dir: str = "/content/drive/MyDrive/NOVA IMS/Year 2/Thesis/Models",
+    evaluation_steps: Optional[int] = None,
+    steps_per_epoch: Optional[int] = None,
+    out_dir: str = "./Models",
 ) -> str:
     """
     Train SBERT with MultipleNegativesRankingLoss using a provided DataLoader.
 
-    Key notes:
-    - Don't pass batch_size into SentenceTransformer.fit() (not a valid kwarg).
-    - When using a batch sampler, provide steps_per_epoch (default uses len(train_dataloader)).
+    Args:
+        train_dataloader: DataLoader yielding InputExample batches.
+        ir_evaluator: Sentence-Transformers evaluator (e.g., InformationRetrievalEvaluator).
+        run_name: Name prefix for the run folder.
+        model: Existing SentenceTransformer model (optional).
+        model_name: HF model name if model is None.
+        epochs: Training epochs.
+        evaluation_steps: Steps between evals (default: max(1000, steps_per_epoch//2)).
+        steps_per_epoch: Defaults to len(train_dataloader).
+        out_dir: Base output directory (created if missing).
+
+    Returns:
+        output_path: Path where the model was saved.
     """
     if model is None:
         model = SentenceTransformer(model_name)
@@ -171,8 +187,9 @@ def train_sbert_with_dataloader(
     if evaluation_steps is None:
         evaluation_steps = max(1000, steps_per_epoch // 2)
 
+    os.makedirs(out_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    output_path = f"{models_dir}/{run_name}_{timestamp}"
+    output_path = os.path.join(out_dir, f"{run_name}_{timestamp}")
 
     model.fit(
         train_objectives=[(train_dataloader, train_loss)],
@@ -186,3 +203,49 @@ def train_sbert_with_dataloader(
     )
 
     return output_path
+
+
+def save_json(obj: Any, filename: str, out_dir: str = ".", indent: int = 2) -> str:
+    """
+    Save a Python object as JSON to out_dir/filename.
+
+    Args:
+        obj: JSON-serializable object.
+        filename: e.g., "metrics.json"
+        out_dir: output directory (created if missing).
+        indent: JSON indentation.
+
+    Returns:
+        Full output path.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, filename)
+    with open(path, "w") as f:
+        json.dump(obj, f, indent=indent)
+    print("Saved:", path)
+    return path
+
+
+def metrics_dict_to_series(metrics_dict: Mapping[str, Any]) -> pd.Series:
+    """
+    Convert Sentence-Transformers evaluator metrics dict into a tidy pandas Series.
+
+    Example:
+      "test-ir_cosine_recall@10" -> "recall@10"
+
+    Keeps:
+      recall@K, precision@K, accuracy@K, ndcg@K, mrr@K, map@K
+    """
+    clean = {}
+    pattern = re.compile(r"(recall|precision|accuracy|ndcg|mrr|map)@(\d+)", re.IGNORECASE)
+
+    for k, v in metrics_dict.items():
+        m = pattern.search(str(k))
+        if not m:
+            continue
+        metric = m.group(1).lower()
+        K = m.group(2)
+        clean[f"{metric}@{K}"] = float(v)
+
+    # Optional: return sorted keys for consistent tables
+    return pd.Series(dict(sorted(clean.items(), key=lambda x: (x[0].split("@")[0], int(x[0].split("@")[1])))))
