@@ -248,4 +248,4 @@ def metrics_dict_to_series(metrics_dict: Mapping[str, Any]) -> pd.Series:
         clean[f"{metric}@{K}"] = float(v)
 
     # Optional: return sorted keys for consistent tables
-    return pd.Series(dict(sorted(clean.items(), key=lambda x: (x[0].split("@")[0], int(x[0].split("@")[1])))))
+    return pd.Series(clean)
