@@ -226,26 +226,20 @@ def save_json(obj: Any, filename: str, out_dir: str = ".", indent: int = 2) -> s
     return path
 
 
-def metrics_dict_to_series(metrics_dict: Mapping[str, Any]) -> pd.Series:
+def metrics_dict_to_series(metrics_dict):
     """
-    Convert Sentence-Transformers evaluator metrics dict into a tidy pandas Series.
+    Convert evaluator metrics dict into a pandas Series.
 
     Example:
       "test-ir_cosine_recall@10" -> "recall@10"
-
-    Keeps:
-      recall@K, precision@K, accuracy@K, ndcg@K, mrr@K, map@K
     """
+    
     clean = {}
-    pattern = re.compile(r"(recall|precision|accuracy|ndcg|mrr|map)@(\d+)", re.IGNORECASE)
-
     for k, v in metrics_dict.items():
-        m = pattern.search(str(k))
-        if not m:
-            continue
-        metric = m.group(1).lower()
-        K = m.group(2)
-        clean[f"{metric}@{K}"] = float(v)
+        m = re.search(r"(recall|precision|accuracy|ndcg|mrr|map)@(\d+)", k, re.IGNORECASE)
+        if m:
+            metric = m.group(1).lower()
+            K = m.group(2)
+            clean[f"{metric}@{K}"] = float(v)
 
-    # Optional: return sorted keys for consistent tables
     return pd.Series(clean)
