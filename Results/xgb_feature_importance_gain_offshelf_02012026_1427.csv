@@ -1,0 +1,10 @@
+feature,importance_gain
+idf_overlap_mean,18794.8359375
+occ_coverage,15287.7001953125
+jaccard,8409.9453125
+occ_avg_skill_idf,6171.46923828125
+idf_overlap_sum_parent,5318.8388671875
+idf_overlap_sum,3764.19580078125
+cv_coverage,3449.70751953125
+overlap_count,2236.645751953125
+sbert_score,1692.693603515625
