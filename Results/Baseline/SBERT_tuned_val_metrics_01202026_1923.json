@@ -1,0 +1,19 @@
+{
+  "val-ir_cosine_accuracy@1": 0.020861349998304874,
+  "val-ir_cosine_accuracy@3": 0.05025483393416131,
+  "val-ir_cosine_accuracy@5": 0.07163602255647594,
+  "val-ir_cosine_accuracy@10": 0.10830724722846907,
+  "val-ir_cosine_precision@1": 0.020861349998304874,
+  "val-ir_cosine_precision@3": 0.016751611311387103,
+  "val-ir_cosine_precision@5": 0.014327204511295188,
+  "val-ir_cosine_precision@10": 0.010830724722846909,
+  "val-ir_cosine_precision@20": 0.00783713229892981,
+  "val-ir_cosine_recall@1": 0.020861349998304874,
+  "val-ir_cosine_recall@3": 0.05025483393416131,
+  "val-ir_cosine_recall@5": 0.07163602255647594,
+  "val-ir_cosine_recall@10": 0.10830724722846907,
+  "val-ir_cosine_recall@20": 0.15674264597859622,
+  "val-ir_cosine_ndcg@10": 0.05827350023983296,
+  "val-ir_cosine_mrr@10": 0.04307454051772576,
+  "val-ir_cosine_map@10": 0.043074540517725544
+}

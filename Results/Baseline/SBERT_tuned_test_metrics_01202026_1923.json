@@ -1,0 +1,19 @@
+{
+  "test-ir_cosine_accuracy@1": 0.021219949685818393,
+  "test-ir_cosine_accuracy@3": 0.051205396929255555,
+  "test-ir_cosine_accuracy@5": 0.07245919023498754,
+  "test-ir_cosine_accuracy@10": 0.10957436007355346,
+  "test-ir_cosine_precision@1": 0.021219949685818393,
+  "test-ir_cosine_precision@3": 0.017068465643085184,
+  "test-ir_cosine_precision@5": 0.014491838046997508,
+  "test-ir_cosine_precision@10": 0.010957436007355348,
+  "test-ir_cosine_precision@20": 0.007897972767167177,
+  "test-ir_cosine_recall@1": 0.021219949685818393,
+  "test-ir_cosine_recall@3": 0.051205396929255555,
+  "test-ir_cosine_recall@5": 0.07245919023498754,
+  "test-ir_cosine_recall@10": 0.10957436007355346,
+  "test-ir_cosine_recall@20": 0.15795945534334352,
+  "test-ir_cosine_ndcg@10": 0.05900544773700691,
+  "test-ir_cosine_mrr@10": 0.043641831358854064,
+  "test-ir_cosine_map@10": 0.04364183135885358
+}
