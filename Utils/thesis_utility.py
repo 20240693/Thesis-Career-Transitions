@@ -1,49 +1,24 @@
-"""
-thesis_utility.py
-
-Small, shared utilities used across notebooks for:
-- Building SBERT training examples (positive CV–JD pairs)
-- Building an InformationRetrievalEvaluator (CV -> job retrieval)
-- Training SBERT with a provided DataLoader
-
-Designed for Google Colab + Drive paths.
-"""
+# Shared helper functions used across thesis notebooks
 
 from __future__ import annotations
 
-from typing import Optional, Set, Tuple, List, Dict
-
-import math
+from typing import Any, Dict, Optional, Set, Tuple
 from datetime import datetime
+import json
+import math
+import os
+import re
 
 import pandas as pd
 from sentence_transformers import InputExample, SentenceTransformer, losses
 from sentence_transformers.evaluation import InformationRetrievalEvaluator
 
-import os
-import json
-from typing import Any, Optional, Mapping
-
-import re
-
-
+# Build positive SBERT training examples from CV–job pairs
 def build_train_examples_with_meta(
     train_df: pd.DataFrame,
     max_samples: Optional[int] = None,
 ) -> tuple[list[InputExample], list[str], list[str]]:
-    """
-    Build Sentence-Transformers InputExample list + aligned metadata.
 
-    Returns:
-        examples: List[InputExample] with texts=[cv_text, jd_text]
-        groups:   List[str] of iscoGroup (string)
-        occs:     List[str] of occupationUri
-
-    Notes:
-    - Drops rows with missing/empty cv_text or jd_text
-    - Drops rows with missing iscoGroup or occupationUri
-    - Deduplicates exact (cv_text, jd_text) pairs globally
-    """
     if max_samples is not None:
         train_df = train_df.head(max_samples)
 
@@ -58,6 +33,7 @@ def build_train_examples_with_meta(
         grp = row.get("iscoGroup")
         occ = row.get("occupationUri")
 
+        # Skip rows with missing or empty inputs
         if not (isinstance(cv, str) and cv.strip()):
             continue
         if not (isinstance(jd, str) and jd.strip()):
@@ -76,6 +52,7 @@ def build_train_examples_with_meta(
         jd = jd.strip()
         occ = occ.strip()
 
+        # Remove duplicate CV–JD pairs
         key = (cv, jd)
         if key in seen:
             continue
@@ -87,7 +64,7 @@ def build_train_examples_with_meta(
 
     return examples, groups, occs
 
-
+# Build retrieval evaluator for CV -> job description matching
 def build_ir_eval_unique_jobs_df(
     df: pd.DataFrame,
     name: str = "ir-eval-unique-jobs",
@@ -96,17 +73,8 @@ def build_ir_eval_unique_jobs_df(
     ndcg_at_k: list[int] = [10],
     map_at_k: list[int] = [10],
 ) -> InformationRetrievalEvaluator:
-    """
-    Build InformationRetrievalEvaluator for CV -> JD retrieval.
 
-    Corpus:
-      - occupationUri -> jd_text
-      - deduplicated by occupationUri to avoid duplicate positives
-
-    Queries:
-      - one query per row with non-empty cv_text and a valid occupationUri in corpus
-      - relevant_docs[qid] = {occupationUri}
-    """
+    # Build corpus with one job description per occupation
     corpus: Dict[str, str] = (
         df[["occupationUri", "jd_text"]]
         .dropna()
@@ -123,6 +91,7 @@ def build_ir_eval_unique_jobs_df(
         cv = row.get("cv_text")
         occ = row.get("occupationUri")
 
+        # Keep only valid CV queries with a target occupation in the corpus
         if not (isinstance(cv, str) and cv.strip()):
             continue
         if not (isinstance(occ, str) and occ in corpus):
@@ -144,7 +113,7 @@ def build_ir_eval_unique_jobs_df(
         map_at_k=map_at_k,
     )
 
-
+# Train SBERT with MultipleNegativesRankingLoss using a provided DataLoader
 def train_sbert_with_dataloader(
     train_dataloader,
     ir_evaluator,
@@ -157,40 +126,30 @@ def train_sbert_with_dataloader(
     steps_per_epoch: Optional[int] = None,
     out_dir: str = "./Models",
 ) -> str:
-    """
-    Train SBERT with MultipleNegativesRankingLoss using a provided DataLoader.
 
-    Args:
-        train_dataloader: DataLoader yielding InputExample batches.
-        ir_evaluator: Sentence-Transformers evaluator (e.g., InformationRetrievalEvaluator).
-        run_name: Name prefix for the run folder.
-        model: Existing SentenceTransformer model (optional).
-        model_name: HF model name if model is None.
-        epochs: Training epochs.
-        evaluation_steps: Steps between evals (default: max(1000, steps_per_epoch//2)).
-        steps_per_epoch: Defaults to len(train_dataloader).
-        out_dir: Base output directory (created if missing).
-
-    Returns:
-        output_path: Path where the model was saved.
-    """
+    # Initialize model if not provided
     if model is None:
         model = SentenceTransformer(model_name)
 
+    # Use in-batch negatives through MultipleNegativesRankingLoss
     train_loss = losses.MultipleNegativesRankingLoss(model)
 
     if steps_per_epoch is None:
         steps_per_epoch = len(train_dataloader)
 
+    # Warm up learning rate over first 10% of total training steps
     warmup_steps = math.ceil(steps_per_epoch * epochs * 0.1)
 
+    # Evaluate periodically during training
     if evaluation_steps is None:
         evaluation_steps = max(1000, steps_per_epoch // 2)
 
+    # Create output directory and timestamped run folder
     os.makedirs(out_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     output_path = os.path.join(out_dir, f"{run_name}_{timestamp}")
 
+    # Train and save model
     model.fit(
         train_objectives=[(train_dataloader, train_loss)],
         evaluator=ir_evaluator,
@@ -204,20 +163,8 @@ def train_sbert_with_dataloader(
 
     return output_path
 
-
+# Save a Python object as JSON
 def save_json(obj: Any, filename: str, out_dir: str = ".", indent: int = 2) -> str:
-    """
-    Save a Python object as JSON to out_dir/filename.
-
-    Args:
-        obj: JSON-serializable object.
-        filename: e.g., "metrics.json"
-        out_dir: output directory (created if missing).
-        indent: JSON indentation.
-
-    Returns:
-        Full output path.
-    """
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, filename)
     with open(path, "w") as f:
@@ -225,15 +172,9 @@ def save_json(obj: Any, filename: str, out_dir: str = ".", indent: int = 2) -> s
     print("Saved:", path)
     return path
 
-
-def metrics_dict_to_series(metrics_dict):
-    """
-    Convert evaluator metrics dict into a pandas Series.
-
-    Example:
-      "test-ir_cosine_recall@10" -> "recall@10"
-    """
-    
+# Convert evaluator metric names to a clean pandas Series
+# Example: "test-ir_cosine_recall@10" -> "recall@10"
+def metrics_dict_to_series(metrics_dict):    
     clean = {}
     for k, v in metrics_dict.items():
         m = re.search(r"(recall|precision|accuracy|ndcg|mrr|map)@(\d+)", k, re.IGNORECASE)
