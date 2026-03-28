@@ -34,6 +34,9 @@ This repository contains all code, data processing steps, models, and experiment
   - `Hybrid/` → hybrid results  
   - `Rerankers/` → reranker results  
 
+- `Utils/`
+  - `thesis_utility.py` → shared helper functions used across notebooks
+
 ---
 
 ## Notebooks Overview
